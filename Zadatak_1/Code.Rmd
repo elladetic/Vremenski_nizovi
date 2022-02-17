@@ -1,0 +1,26 @@
+---
+title: "Zadatak 1"
+author: "Eleonora Detić"
+date: "2/17/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+```{r}
+
+```
+
