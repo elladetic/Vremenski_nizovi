@@ -1,0 +1,210 @@
+---
+title: "Zadatak 2"
+author: "Eleonora Detić"
+date: "2/17/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(hrbrthemes)
+library(data.table)
+library('tseries')
+library(seastests)
+library(itsmr)
+```
+
+## Učitavanje i crtanje vremenskog niza
+```{r}
+df= read.table("data.txt",sep = "", dec = ".")
+data <- data.frame(x = c(1:400),y = ts(as.numeric(df[1,])))
+
+#df = transpose(df)
+xt = ts(df)
+  
+ggplot(data, aes(x = x, y = y)) +
+  geom_line(color="steelblue") + 
+  geom_point(size=0.2) +
+  xlab("") +
+  ylab("") +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) 
+
+jarque.bera.test(data$y) #mala p value, podaci nisu homogeni, rast podataka kroz vrijeme
+
+#provjera sezonalnosti
+library(seastests)
+fried(data$y, freq = 7)
+fried(data$y, freq = 12)
+
+kw(data$y, freq = 7)
+kw(data$y, freq = 12)
+#nulta je da nije sezonalan -> velika p value,  ne odbacujem H_0 
+
+isSeasonal(data$y, freq = 7) #nije sezonalan
+```
+#neki blagi trend prema gore, nije stacionaran 
+#nebi rekla da je ovo sezonalno
+
+#Zadatak 2 - uklanjanje trenda
+```{r}
+t = data$x
+#plot(data$y)
+
+model_trend_1 <- lm(data$y ~ t)
+summary(model_trend_1) 
+data$Polinom_1 = predict(model_trend_1)
+
+model_trend_2 <- lm(data$y ~ t+I(t^2))
+summary(model_trend_2) #ovaj mi se čini najbolji
+data$Polinom_2 = predict(model_trend_2)
+
+model_trend_3 <- lm(data$y ~ t+I(t^2)+I(t^3))
+summary(model_trend_3) 
+data$Polinom_3 = predict(model_trend_3)
+
+anova(model_trend_2, model_trend_3) #jednostavni model je dovoljan
+
+#nacrtamo sva tri modela da vidimo koji je bolji fit
+ggplot(data, aes(x = x)) + geom_line(aes(y = y,color="Stvarni podaci"), col="red") +geom_line(aes(y = Polinom_1,col="Polinom prvog stupnja"), linetype="dashed")  +geom_line(aes(y = Polinom_2,color="Polinom drugog stupnja"),linetype="dashed") +geom_line(aes(y = Polinom_3,color="Polinom trećeg stupnja"),linetype="dashed") + labs(color="Legenda")
+
+#odlučili smo se za polinom drugog stupnja
+data$y_no_trend = data$y - data$Polinom_2
+
+ggplot(data, aes(x = x)) + geom_line(aes(y = y_no_trend), col="steelblue") +ylab("") #podaci bez trenda
+```
+
+
+#najbolji AR(p) model
+
+```{r}
+#tražim onaj koji ima najmanji aic kriterij - isprobala za prvih 50, najbolji je za p = 1 
+p = c(1:5)
+for(i in p){
+  print(i)
+  print(yw(data$y_no_trend, p = i)$aicc)
+}
+#ar = yw(data$y_no_trend,, p = 1)
+
+library(tseries)
+AR <- arima(data$y_no_trend, order = c(1,0,0))
+data$y_fit_AR = data$y_no_trend - residuals(AR)
+
+ggplot(data, aes(x = x)) + geom_line(aes(y = y_no_trend, col="Stvarni podaci sa uklonjenim trendom")) +ylab("") + geom_line(aes(y = y_fit_AR, col="Fitani AR(1) model"), linetype="dashed") +ylab("")+ labs(color="Legenda")
+
+
+#drugi način 
+ar(data$y_no_trend, method= "yule-walker")$order #isto se dobi jedinica 
+
+pacf(data$y_no_trend) #komentiraj isto se vidi AR(1)
+acf(data$y_no_trend) 
+```
+
+
+#najbolji MA(q) model koristeći AIC kriterij
+
+```{r}
+library(tseries)
+p = c(1:3)
+for(i in p){
+  print(i)
+  print(arima(data$y_no_trend, order = c(0,0,i))$aic)
+}
+
+#najmanji aic za q=3
+MA <- arima(data$y_no_trend, order = c(1,1,3))
+data$y_fit_MA = data$y_no_trend - residuals(MA)
+
+ggplot(data, aes(x = x)) + geom_line(aes(y = y_no_trend, col="Stvarni podaci sa uklonjenim trendom")) +
+geom_line(aes(y = y_fit_AR, col="Fitani AR(1) model"), linetype="dashed") +ylab("")+ labs(color="Legenda") +
+geom_line(aes(y = y_fit_MA, col="Fitani MA(1) model"), linetype="dashed")
+
+ggplot(data[40:45, ], aes(x = x)) + geom_line(aes(y = y_no_trend, col="Stvarni podaci sa uklonjenim trendom")) +
+geom_line(aes(y = y_fit_AR, col="Fitani AR(1) model"), linetype="dashed") +ylab("")+ labs(color="Legenda") +
+geom_line(aes(y = y_fit_MA, col="Fitani MA(1) model"), linetype="dashed")
+```
+
+
+#prilagodba GARCH(1,1) modela? 
+```{r}
+GARCH <- garch(data$y_no_trend, order = c(1,1))
+#garch se koriste kada 
+data$y_fit_GARCH = data$y_no_trend - residuals(GARCH)
+
+ggplot(data, aes(x = x)) + geom_line(aes(y = y_no_trend, col="Stvarni podaci sa uklonjenim trendom")) +
+geom_line(aes(y = y_fit_AR, col="Fitani AR(1) model"), linetype="dashed") +ylab("")+ labs(color="Legenda") +
+geom_line(aes(y = y_fit_MA, col="Fitani MA(1) model"), linetype="dashed") +
+geom_line(aes(y = y_fit_GARCH, col="Fitani GARCH(1) model"), linetype="dashed")
+```
+#još grafičkih prikaza
+```{r}
+ggplot(data[340:400,], aes(x = x)) + geom_line(aes(y = y_no_trend, col="Stvarni podaci sa uklonjenim trendom")) +
+geom_line(aes(y = y_fit_GARCH, col="Fitani GARCH(1) model"), linetype="dashed")
+```
+
+
+## izabrat ću GARCH model
+```{r}
+GARCH #koeficijenti su mu 1.419e+06  2.062e-01  3.311e-09  
+```
+
+## 5 zadatak  - prediktiranje 
+
+```{r}
+#predikt za AR
+
+library(fGarch)
+KK = garchFit(formula = ~ garch(1, 1), data = data$y_no_trend)
+predict(KK, n.ahead= 90, plot = TRUE)
+
+new_t <- data.frame(t = 400)
+fc_t = predict(GARCH, new_t) # u predict ovo mora ic ko dataframe iz nekog razloga da ga on prepozna
+
+#crtanje predikcija
+plot(c(1:24),new_korona$V1,col="red",type="l")
+lines(c(1:24), fc$mean+fc_s +fc_t)
+lines(c(1:24), fc$lower[,2] + fc_s + fc_t,col="blue")
+lines(c(1:24), fc$upper[,2] + fc_s + fc_t,col="blue")
+
+model = auto.arima(data$y_no_trend, seasonal = FALSE)
+plot(data$x,data$y_no_trend,type="l")
+lines(data$x,model$fitted,col="red")
+
+library(forecast)
+fc = forecast(model, h = 1)
+
+new_t = ((length(korona$V1)+1):(length(korona$V1)+24))
+new_t <- data.frame(t = c(154:(154+23)))
+new_t
+fc_t = predict(model_trend, new_t)
+fc$mean + data$Polinom_2[400]
+
+predict(GARCH)
+```
+
+
+#predict za AR
+```{r}
+new_t <- data.frame(t = c(401))
+fc_t = predict(model_trend_2, new_t) #procjena trenda
+AR_forecast <- predict(AR, n.ahead = 1)$pred
+AR_forecast_se <- predict(AR, n.ahead = 1)$se
+
+fc_t + AR_forecast
+fc_t + 2* AR_forecast_se
+fc_t - 2 * AR_forecast_se
+
+
+data_new = data.frame(x = c(data$x[390:400], 401), y = c(data$y[390:400],prediction), upper = c(data$y[390:400],upper) , lower = c(data$y[390:400],lower))
+ggplot(data_new, aes(x = x)) + geom_line(aes(y = y, col="Stvarni podaci sa uklonjenim trendom")) +
+geom_line(aes(y = upper, col="Fitani GARCH(1) model"), linetype="dashed") +
+  geom_line(aes(y = lower, col="Fitani GARCH(1) model"), linetype="dashed")
+
+
+```
+
+
+
+
+
