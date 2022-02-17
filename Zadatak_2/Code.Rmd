@@ -140,7 +140,7 @@ geom_line(aes(y = y_fit_GARCH, col="Fitani GARCH(1) model"), linetype="dashed")
 #još grafičkih prikaza
 ```{r}
 ggplot(data[340:400,], aes(x = x)) + geom_line(aes(y = y_no_trend, col="Stvarni podaci sa uklonjenim trendom")) +
-geom_line(aes(y = y_fit_GARCH, col="Fitani GARCH(1) model"), linetype="dashed")
+geom_line(aes(y = y_fit_GARCH, col="Fitani GARCH(1) model"), linetype="dashed") + labs(color="Legenda")
 ```
 
 
@@ -152,58 +152,59 @@ GARCH #koeficijenti su mu 1.419e+06  2.062e-01  3.311e-09
 ## 5 zadatak  - prediktiranje 
 
 ```{r}
-#predikt za AR
+new_t <- data.frame(t = c(401))
+fc_t = predict(model_trend_2, new_t) #procjena trenda
 
+#predikt za GARCH
 library(fGarch)
-KK = garchFit(formula = ~ garch(1, 1), data = data$y_no_trend)
-predict(KK, n.ahead= 90, plot = TRUE)
+p = predict(garchFit(formula = ~ garch(1, 1), data = data$y_no_trend), n.ahead= 1)
 
-new_t <- data.frame(t = 400)
-fc_t = predict(GARCH, new_t) # u predict ovo mora ic ko dataframe iz nekog razloga da ga on prepozna
+prediction = fc_t + p$meanForecast
+upper = fc_t + 2* p$standardDeviation
+lower = fc_t - 2 * p$standardDeviation
 
-#crtanje predikcija
-plot(c(1:24),new_korona$V1,col="red",type="l")
-lines(c(1:24), fc$mean+fc_s +fc_t)
-lines(c(1:24), fc$lower[,2] + fc_s + fc_t,col="blue")
-lines(c(1:24), fc$upper[,2] + fc_s + fc_t,col="blue")
 
-model = auto.arima(data$y_no_trend, seasonal = FALSE)
-plot(data$x,data$y_no_trend,type="l")
-lines(data$x,model$fitted,col="red")
+data_new = data.frame(x = c(data$x[390:400], 401), y = c(data$y[390:400],prediction), upper = c(data$y[390:400],upper) , lower = c(data$y[390:400],lower))
+ggplot(data_new, aes(x = x)) + geom_line(aes(y = y, col="Procjena za sljedeću vrijednost")) +
+geom_line(aes(y = upper, col="Pouzdane granice")) +
+  geom_line(aes(y = lower, col="Pouzdane granice")) + geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) + labs(color="Legenda")
 
-library(forecast)
-fc = forecast(model, h = 1)
-
-new_t = ((length(korona$V1)+1):(length(korona$V1)+24))
-new_t <- data.frame(t = c(154:(154+23)))
-new_t
-fc_t = predict(model_trend, new_t)
-fc$mean + data$Polinom_2[400]
-
-predict(GARCH)
 ```
 
 
 #predict za AR
 ```{r}
-new_t <- data.frame(t = c(401))
-fc_t = predict(model_trend_2, new_t) #procjena trenda
+
 AR_forecast <- predict(AR, n.ahead = 1)$pred
 AR_forecast_se <- predict(AR, n.ahead = 1)$se
 
-fc_t + AR_forecast
-fc_t + 2* AR_forecast_se
-fc_t - 2 * AR_forecast_se
+prediction = fc_t + AR_forecast
+upper = fc_t + 2* AR_forecast_se
+lower = fc_t - 2 * AR_forecast_se
 
 
 data_new = data.frame(x = c(data$x[390:400], 401), y = c(data$y[390:400],prediction), upper = c(data$y[390:400],upper) , lower = c(data$y[390:400],lower))
-ggplot(data_new, aes(x = x)) + geom_line(aes(y = y, col="Stvarni podaci sa uklonjenim trendom")) +
-geom_line(aes(y = upper, col="Fitani GARCH(1) model"), linetype="dashed") +
-  geom_line(aes(y = lower, col="Fitani GARCH(1) model"), linetype="dashed")
-
+ggplot(data_new, aes(x = x)) + geom_line(aes(y = y, col="Procjena za sljedeću vrijednost")) +
+geom_line(aes(y = upper, col="Pouzdane granice")) +
+  geom_line(aes(y = lower, col="Pouzdane granice")) + geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) + labs(color="Legenda")
 
 ```
+#predict za MA
+```{r}
+MA_forecast <- predict(MA, n.ahead = 1)$pred
+MA_forecast_se <- predict(MA, n.ahead = 1)$se
 
+prediction = fc_t + MA_forecast
+upper = fc_t + 2* MA_forecast_se
+lower = fc_t - 2 * MA_forecast_se
+
+
+data_new = data.frame(x = c(data$x[390:400], 401), y = c(data$y[390:400],prediction), upper = c(data$y[390:400],upper) , lower = c(data$y[390:400],lower))
+ggplot(data_new, aes(x = x)) + geom_line(aes(y = y, col="Procjena za sljedeću vrijednost")) +
+geom_line(aes(y = upper, col="Pouzdane granice")) +
+  geom_line(aes(y = lower, col="Pouzdane granice")) + geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) + labs(color="Legenda")
+
+```
 
 
 
