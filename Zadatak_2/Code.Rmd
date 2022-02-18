@@ -19,7 +19,9 @@ library(itsmr)
 ## Učitavanje i crtanje vremenskog niza
 ```{r}
 df= read.table("data.txt",sep = "", dec = ".")
-data <- data.frame(x = c(1:400),y = ts(as.numeric(df[1,])))
+y = ts(as.numeric(df[1,]), frequency = 3)
+data <- data.frame(x = c(1:400),y = y)
+
 
 #df = transpose(df)
 xt = ts(df)
@@ -33,19 +35,14 @@ ggplot(data, aes(x = x, y = y)) +
 
 jarque.bera.test(data$y) #mala p value, podaci nisu homogeni, rast podataka kroz vrijeme
 
-#provjera sezonalnosti
-library(seastests)
-fried(data$y, freq = 7)
-fried(data$y, freq = 12)
-
-kw(data$y, freq = 7)
-kw(data$y, freq = 12)
-#nulta je da nije sezonalan -> velika p value,  ne odbacujem H_0 
-
-isSeasonal(data$y, freq = 7) #nije sezonalan
+ggplot(data[114:190,], aes(x = x, y = y)) +
+  geom_line(color="steelblue") + 
+  geom_point(size=0.2) +
+  xlab("") +
+  ylab("") +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) 
 ```
-#neki blagi trend prema gore, nije stacionaran 
-#nebi rekla da je ovo sezonalno
+
 
 #Zadatak 2 - uklanjanje trenda
 ```{r}
@@ -67,12 +64,38 @@ data$Polinom_3 = predict(model_trend_3)
 anova(model_trend_2, model_trend_3) #jednostavni model je dovoljan
 
 #nacrtamo sva tri modela da vidimo koji je bolji fit
-ggplot(data, aes(x = x)) + geom_line(aes(y = y,color="Stvarni podaci"), col="red") +geom_line(aes(y = Polinom_1,col="Polinom prvog stupnja"), linetype="dashed")  +geom_line(aes(y = Polinom_2,color="Polinom drugog stupnja"),linetype="dashed") +geom_line(aes(y = Polinom_3,color="Polinom trećeg stupnja"),linetype="dashed") + labs(color="Legenda")
+ggplot(data, aes(x = x)) +geom_line(aes(y = Polinom_2,col="Polinom drugog stupnja"), linetype="dashed")  +geom_line(aes(y = Polinom_1,color="Polinom prvog stupnja"),linetype="dashed") +geom_line(aes(y = Polinom_3,color="Polinom trećeg stupnja"),linetype="dashed") + geom_line(aes(y = y,color="Stvarni podaci"), col="steelblue") + labs(color="Legenda") + ylab("")
 
 #odlučili smo se za polinom drugog stupnja
 data$y_no_trend = data$y - data$Polinom_2
 
 ggplot(data, aes(x = x)) + geom_line(aes(y = y_no_trend), col="steelblue") +ylab("") #podaci bez trenda
+
+## Zadatak 2 - uklanjanje sezonalnosti
+
+#ggplot(data[1:30,], aes(x = x, y = y)) +
+  #geom_line(color="steelblue") + 
+  #geom_point(size=0.2)  +
+ # ylab("") +
+  #xlab("x")
+  #theme(axis.text.x=element_text(angle=60, hjust=1)) 
+
+xt = ts(data$y, frequency = 3)
+x.stl=stl(xt,s.window = "periodic")
+#plot(x.stl)
+sum(abs(x.stl$time.series[,3]))
+#sezonalnst, frequency je 3? 
+
+data$y_no_trend = data$y_no_trend - x.stl$time.series[,1] #uklanjam i sezonalnost
+
+ggplot(data, aes(x = x, y = y_no_trend)) +
+  geom_line(color="steelblue") +
+  xlab("") +
+  ylab("") 
+
+acf(data$y_no_trend)
+pacf(data$y_no_trend)
+
 ```
 
 
@@ -114,13 +137,14 @@ for(i in p){
 
 #najmanji aic za q=3
 MA <- arima(data$y_no_trend, order = c(1,1,3))
+MA
 data$y_fit_MA = data$y_no_trend - residuals(MA)
 
 ggplot(data, aes(x = x)) + geom_line(aes(y = y_no_trend, col="Stvarni podaci sa uklonjenim trendom")) +
 geom_line(aes(y = y_fit_AR, col="Fitani AR(1) model"), linetype="dashed") +ylab("")+ labs(color="Legenda") +
 geom_line(aes(y = y_fit_MA, col="Fitani MA(1) model"), linetype="dashed")
 
-ggplot(data[40:45, ], aes(x = x)) + geom_line(aes(y = y_no_trend, col="Stvarni podaci sa uklonjenim trendom")) +
+ggplot(data[0:100,], aes(x = x)) + geom_line(aes(y = y_no_trend, col="Transformirani podaci")) +
 geom_line(aes(y = y_fit_AR, col="Fitani AR(1) model"), linetype="dashed") +ylab("")+ labs(color="Legenda") +
 geom_line(aes(y = y_fit_MA, col="Fitani MA(1) model"), linetype="dashed")
 ```
@@ -144,10 +168,6 @@ geom_line(aes(y = y_fit_GARCH, col="Fitani GARCH(1) model"), linetype="dashed") 
 ```
 
 
-## izabrat ću GARCH model
-```{r}
-GARCH #koeficijenti su mu 1.419e+06  2.062e-01  3.311e-09  
-```
 
 ## 5 zadatak  - prediktiranje 
 
@@ -202,7 +222,7 @@ lower = fc_t - 2 * MA_forecast_se
 data_new = data.frame(x = c(data$x[390:400], 401), y = c(data$y[390:400],prediction), upper = c(data$y[390:400],upper) , lower = c(data$y[390:400],lower))
 ggplot(data_new, aes(x = x)) + geom_line(aes(y = y, col="Procjena za sljedeću vrijednost")) +
 geom_line(aes(y = upper, col="Pouzdane granice")) +
-  geom_line(aes(y = lower, col="Pouzdane granice")) + geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) + labs(color="Legenda")
+  geom_line(aes(y = lower, col="Pouzdane granice")) + geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) + labs(color="Legenda")+xlab("") + ylab("")
 
 ```
 
