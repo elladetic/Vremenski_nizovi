@@ -62,6 +62,7 @@ model_trend_2 <- lm(data$y ~ t+I(t^2))
 summary(model_trend_2) #ovaj mi se čini najbolji
 data$Polinom_2 = predict(model_trend_2)
 
+
 model_trend_3 <- lm(data$y ~ t+I(t^2)+I(t^3))
 summary(model_trend_3) 
 data$Polinom_3 = predict(model_trend_3)
@@ -222,7 +223,7 @@ geom_line(aes(y = y_fit_GARCH, col="Fitani GARCH(1,1) model"), linetype="dashed"
 
 #koeficijenti AR modela
 ```{r}
-AR$coef
+AR
 ```
 
 
