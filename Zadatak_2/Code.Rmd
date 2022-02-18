@@ -223,7 +223,7 @@ geom_line(aes(y = y_fit_GARCH, col="Fitani GARCH(1,1) model"), linetype="dashed"
 
 #koeficijenti AR modela
 ```{r}
-AR
+AR$c
 ```
 
 
